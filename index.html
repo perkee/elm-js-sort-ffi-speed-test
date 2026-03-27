@@ -1,0 +1,100 @@
+<html>
+    <head></head>
+    <body lang="sv">
+        <script>
+            Object.defineProperty(Array.prototype, "sortedPerLocale", {
+                get() {
+                    const lang = document.body?.lang;
+                    if (lang) {
+                        try {
+                            const collator = new Intl.Collator(lang);
+                            return [...this].sort(collator.compare);
+                        } catch (error) {
+                            console.error(
+                                "could not create collator with language code",
+                                lang,
+                                error,
+                            );
+                            return [...this].sort();
+                        }
+                    } else {
+                        return [...this].sort();
+                    }
+                },
+            });
+
+            Object.defineProperty(Object.prototype, "sortedPerLocale2", {
+                get() {
+                    const lang = document.body?.lang;
+                    const records = [...this.records];
+                    const sortField = this.sortField;
+                    // console.log("sortedPerLocale2", {
+                    //     lang,
+                    //     records,
+                    //     sortField,
+                    // });
+                    if ((lang, Array.isArray(records), sortField)) {
+                        try {
+                            const collator = new Intl.Collator(lang);
+                            const sorted = records.sort((a, b) =>
+                                collator.compare(a[sortField], b[sortField]),
+                            );
+                            return sorted;
+                        } catch (error) {
+                            console.error(
+                                "could not create collator with language code",
+                                lang,
+                                error,
+                            );
+                            return records.sort();
+                        }
+                    } else {
+                        return records.sort();
+                    }
+                },
+            });
+
+            Object.defineProperty(Object.prototype, "comparePerLocale", {
+                get() {
+                    if (
+                        !Object.hasOwn(this, "one") ||
+                        !Object.hasOwn(this, "two")
+                    ) {
+                        console.error(
+                            "comparePerLocale expects object to have fields `one` and `two`",
+                            {
+                                one: this.one,
+                                two: this.two,
+                            },
+                        );
+                    }
+                    const lang = document.body?.lang;
+                    if (lang) {
+                        try {
+                            const { one, two } = this;
+                            const result = one.localeCompare(two, lang);
+                            //console.log("comparing", one, two, result);
+                            return result;
+                        } catch (error) {
+                            console.error(
+                                "could not create collator with language code",
+                                lang,
+                                error,
+                            );
+                            return 0;
+                        }
+                    } else {
+                        console.error("falsy language:", lang);
+                        return 0;
+                    }
+                },
+            });
+        </script>
+        <script src="elm.js"></script>
+        <main></main>
+        <script>
+            var app = Elm.Main.init({ node: document.querySelector("main") });
+            // you can use ports and stuff here
+        </script>
+    </body>
+</html>
