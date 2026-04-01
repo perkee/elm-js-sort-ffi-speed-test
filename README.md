@@ -15,21 +15,23 @@ I wanted to know if it was faster to
 
 ```bash
 elm make src/Main.elm --output elm.js --optimize
+# or with optimize-level-2
+npm i # only upon cloning the repo
+./node_modules/elm-optimize-level-2/bin/elm-optimize-level-2 -O3 src/Main.elm
 ```
 
 ## Results
 Best is to pass whole records into JS, sort them in there, and decode them back into records.
 Limitation: these are very simple records. Maybe that advantage is winnowed away as the records get wider and deeper.
+Second best is to pass a list of `String`s to JS, sort that as an array, and reconcile your array of records. Particulars of composition vs lambdas are not consequential.
+Worst is to sort in Elm by running a 
 
 
-|                                                                       | runs / second | goodness of fit |
-| --------------------------------------------------------------------- | ------------: | --------------: |
-| Sort array of objects in JS and encode to/decode from records in Elm  |          1763 |          99.97% |
-| Sort array of strings in JS, reconcile with records in Elm            |           949 |          99.99% |
-| Sort array of records in Elm comparing in JS                          |           556 |          99.98% |
-
-|                                                                       |   runs / second    |
-| --------------------------------------------------------------------- | -----------------: |
-| Sort array of objects in JS and encode to/decode from records in Elm  | ------------------ |
-| Sort array of strings in JS, reconcile with records in Elm            |          --------- |
-| Sort array of records in Elm comparing in JS                          |             ------ |
+- Sort array of strings in JS, reconcile with records in Elm
+  - Paranoid: return `Err` for impossible `Dict` misses: 999 runs/second
+  - Permissive: put not found elements at end of sorted list
+    - using composition: 993 runs/second
+    - using lambdas: 1,011 runs/second
+    - using composition, mapping decoder rather than result: 999 runs/second
+- Sort array of records in Elm comparing in JS: 622 runs/second
+- Sort array of objects in JS and encode to/decode from records in Elm: 1,803 runs/second

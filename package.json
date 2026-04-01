@@ -1,0 +1,23 @@
+{
+  "name": "speed-racer",
+  "version": "1.0.0",
+  "description": "I need to sort some records by a `String` field according to the user's locale, ideally without going through a whole update loop.",
+  "homepage": "https://github.com/perkee/elm-js-sort-ffi-speed-test#readme",
+  "bugs": {
+    "url": "https://github.com/perkee/elm-js-sort-ffi-speed-test/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/perkee/elm-js-sort-ffi-speed-test.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "elm.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "elm-optimize-level-2": "^0.3.5"
+  }
+}

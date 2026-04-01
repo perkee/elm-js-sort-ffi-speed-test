@@ -8,8 +8,13 @@ import Json.Decode as Decode
 import Json.Encode as Encode
 
 
-main : BenchmarkProgram
 main =
+    -- verify
+    comparison
+
+
+comparison : BenchmarkProgram
+comparison =
     program suite
 
 
@@ -1021,10 +1026,16 @@ users =
     ]
 
 
-mainZ =
+verify =
     let
         one =
-            sortRespectingLocaleByOne .name users
+            sortRespectingLocaleByOneParanoid .name users
+
+        permissive =
+            sortRespectingLocaleByOnePermissive .name users
+
+        mapDecoder =
+            sortRespectingLocaleByOneMapDecoder .name users
 
         two =
             sortRespectingLocaleByTwo .name users
@@ -1036,31 +1047,69 @@ mainZ =
                 "name"
                 users
     in
-    List.map3
-        (\a b c ->
-            Html.tr [] <|
-                List.map (Html.text >> List.singleton >> Html.td [])
-                    [ a.name
-                    , b.name
-                    , c.name
-                    , if a.name == b.name && a.name == c.name then
-                        ""
-
-                      else
-                        "UH-OH"
-                    ]
-        )
+    if
         one
-        two
-        three
-        |> Html.table []
+            == permissive
+            && permissive
+            == mapDecoder
+            && mapDecoder
+            == two
+            && two
+            == three
+    then
+        Html.h1 []
+            [ Html.text "everything matches!"
+            ]
+
+    else
+        List.map5
+            (\a b c d e ->
+                Html.tr [] <|
+                    List.map (Html.text >> List.singleton >> Html.td [])
+                        [ a.name
+                        , b.name
+                        , c.name
+                        , d.name
+                        , e.name
+                        , if
+                            a.name
+                                == b.name
+                                && a.name
+                                == c.name
+                                && a.name
+                                == d.name
+                                && a.name
+                                == e.name
+                          then
+                            ""
+
+                          else
+                            "UH-OH"
+                        ]
+            )
+            one
+            permissive
+            mapDecoder
+            two
+            three
+            |> Html.table []
 
 
 suite : Benchmark
 suite =
     describe "sortRespectingLocaleBy"
-        [ benchmark "Sort array of strings in JS, reconcile with records in Elm" <|
-            \_ -> sortRespectingLocaleByOne .name users
+        [ describe "Sort array of strings in JS, reconcile with records in Elm"
+            [ benchmark "Paranoid: return `Err` for impossible Dict misses" <|
+                \_ -> sortRespectingLocaleByOneParanoid .name users
+            , describe "Permissive: put not found elements at end of sorted list"
+                [ benchmark "using composition" <|
+                    \() -> sortRespectingLocaleByOnePermissive .name users
+                , benchmark "using lambdas" <|
+                    \_ -> sortRespectingLocaleByOneLambdas .name users
+                , benchmark "using composition, mapping decoder rather than result" <|
+                    \_ -> sortRespectingLocaleByOneMapDecoder .name users
+                ]
+            ]
         , benchmark "Sort array of records in Elm comparing in JS" <|
             \_ -> sortRespectingLocaleByTwo .name users
         , benchmark "Sort array of objects in JS and encode to/decode from records in Elm " <|
@@ -1073,8 +1122,8 @@ suite =
         ]
 
 
-sortRespectingLocaleByOne : (a -> String) -> List a -> List a
-sortRespectingLocaleByOne toSortField items =
+sortRespectingLocaleByOneParanoid : (a -> String) -> List a -> List a
+sortRespectingLocaleByOneParanoid toSortField items =
     let
         fieldOrder : Result Decode.Error (Dict.Dict String Int)
         fieldOrder =
@@ -1119,6 +1168,145 @@ sortRespectingLocaleByOne toSortField items =
 
                 Err _ ->
                     items
+
+
+sortRespectingLocaleByOnePermissive : (a -> String) -> List a -> List a
+sortRespectingLocaleByOnePermissive toSortField items =
+    let
+        fieldOrder : Result Decode.Error (Dict.Dict String Int)
+        fieldOrder =
+            items
+                |> Encode.list (toSortField >> Encode.string)
+                |> Decode.decodeValue
+                    (Decode.field "sortedPerLocale"
+                        (Decode.list Decode.string)
+                    )
+                |> Result.map
+                    (List.indexedMap (\index sortField -> ( sortField, index ))
+                        >> Dict.fromList
+                    )
+    in
+    case fieldOrder of
+        Err decodeError ->
+            items
+
+        Ok fieldToIndex ->
+            let
+                lastIndex : Int
+                lastIndex =
+                    Dict.size fieldToIndex
+
+                lookupIndex : a -> Int
+                lookupIndex item =
+                    Dict.get (toSortField item) fieldToIndex
+                        |> Maybe.withDefault lastIndex
+
+                addIndices : a -> List ( a, Int ) -> List ( a, Int )
+                addIndices item soFar =
+                    ( item
+                    , lookupIndex item
+                    )
+                        :: soFar
+            in
+            items
+                |> List.foldr addIndices []
+                |> List.sortBy Tuple.second
+                |> List.map Tuple.first
+
+
+sortRespectingLocaleByOneLambdas : (a -> String) -> List a -> List a
+sortRespectingLocaleByOneLambdas toSortField items =
+    let
+        fieldOrder : Result Decode.Error (Dict.Dict String Int)
+        fieldOrder =
+            items
+                |> Encode.list (\s -> Encode.string (toSortField s))
+                |> Decode.decodeValue
+                    (Decode.field "sortedPerLocale"
+                        (Decode.list Decode.string)
+                    )
+                |> Result.map
+                    (\strs ->
+                        strs
+                            |> List.indexedMap (\index sortField -> ( sortField, index ))
+                            |> Dict.fromList
+                    )
+    in
+    case fieldOrder of
+        Err decodeError ->
+            items
+
+        Ok fieldToIndex ->
+            let
+                lookupIndex : a -> Int
+                lookupIndex item =
+                    case Dict.get (toSortField item) fieldToIndex of
+                        Just n ->
+                            n
+
+                        Nothing ->
+                            -- Non-memoized value is preferred, as every item in list
+                            -- has an index in the Dict, so rather than ammortize one
+                            -- call to Dict.size over everything in the list, we can
+                            -- instead be confident that this will never run.
+                            Dict.size fieldToIndex
+
+                addIndices : a -> List ( a, Int ) -> List ( a, Int )
+                addIndices item soFar =
+                    ( item
+                    , lookupIndex item
+                    )
+                        :: soFar
+            in
+            items
+                |> List.foldr addIndices []
+                |> List.sortBy Tuple.second
+                |> List.map Tuple.first
+
+
+sortRespectingLocaleByOneMapDecoder : (a -> String) -> List a -> List a
+sortRespectingLocaleByOneMapDecoder toSortField items =
+    let
+        fieldOrder : Result Decode.Error (Dict.Dict String Int)
+        fieldOrder =
+            items
+                |> Encode.list (toSortField >> Encode.string)
+                |> Decode.decodeValue
+                    (Decode.field "sortedPerLocale"
+                        (Decode.map
+                            (List.indexedMap (\index sortField -> ( sortField, index ))
+                                >> Dict.fromList
+                            )
+                            (Decode.list Decode.string)
+                        )
+                    )
+    in
+    case fieldOrder of
+        Err decodeError ->
+            items
+
+        Ok fieldToIndex ->
+            let
+                lastIndex : Int
+                lastIndex =
+                    Dict.size fieldToIndex
+
+                lookupIndex : a -> Int
+                lookupIndex item =
+                    Dict.get (toSortField item) fieldToIndex
+                        |> Maybe.withDefault lastIndex
+
+                addIndices : a -> List ( a, Int ) -> List ( a, Int )
+                addIndices item soFar =
+                    ( item
+                    , lookupIndex item
+                    )
+                        :: soFar
+            in
+            items
+                |> List.foldr addIndices []
+                |> List.sortBy Tuple.second
+                |> List.map Tuple.first
 
 
 sortRespectingLocaleByTwo : (a -> String) -> List a -> List a

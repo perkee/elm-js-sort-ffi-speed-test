@@ -28,12 +28,7 @@
                     const lang = document.body?.lang;
                     const records = [...this.records];
                     const sortField = this.sortField;
-                    // console.log("sortedPerLocale2", {
-                    //     lang,
-                    //     records,
-                    //     sortField,
-                    // });
-                    if ((lang, Array.isArray(records), sortField)) {
+                    if (lang && Array.isArray(records) && sortField) {
                         try {
                             const collator = new Intl.Collator(lang);
                             const sorted = records.sort((a, b) =>
@@ -73,7 +68,6 @@
                         try {
                             const { one, two } = this;
                             const result = one.localeCompare(two, lang);
-                            //console.log("comparing", one, two, result);
                             return result;
                         } catch (error) {
                             console.error(
